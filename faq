@@ -1,0 +1,124 @@
+( type Enter to scroll down, use the mouse or type b to scroll up, type \q to quit )
+
+                 *****
+
+ Q:  How can I build a new PHP built?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  `phpadmin build 5.3.8`
+
+     This will create a folder named 5.3.8 in current directory and build PHP version 5.3.8 in it. The path of that folder will be the name of the built.
+     
+                 *****
+
+ Q:  How can I pass PHP conifguration directives when building a new PHP built?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  The same way you would if calling configure manually.
+
+     `phpadmin build 5.2.1 --enable-pdo=shared --with-curl`
+     
+                      *****
+
+ Q:  What are the other parameters I can pass to the build command?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  phpadmin parameters look like the configure parameters except that they use a colon (:) to separate key-value instead of an equal sign. Below is an exhaustive list of these parameters:
+ 
+     --dir:DIR
+     
+     To install the built elsewhere than in current directory
+     
+     --additional-ini:[y|n]
+     
+     By default, phpadmin creates the directory lib/conf.d and tells PHP to scan it for additional ini files. Setting this to n will skip that and will also remove the --with-php-ini-scan-dir that is included by default. If you want PHP to scan a specific directory, you will type: `phpadmin build 5.3.8 --with-php-ini-scan-dir=/path/to/additional/ini`, and the lib/conf.d directory will not be created.
+     
+     --apache-module:[y|n]
+     
+     By default, phpadmin creates a PHP shared object that can be used by an Apache server to bundle PHP. Setting the above parameter to n will skip that.
+     
+     --deploy-php-ini:[y|n]
+     
+     phpadmin deploys the php.ini-production file to lib/php.ini. Passing this argument to n will skip that.
+     
+     --distrib-php-ini:[dev|prod]
+     
+     As pointed above, phpadmin deploys the file php.ini-production. Passing this argument to dev will deploy php.ini-development instead.
+     
+     --time-zone:CONTINENT/CITY
+     
+     Mostly, PHP interpreter issues a notice if no time zone is set. So phpadmins sets time zone to Europe/Paris by default. You change change that with this argument.
+     
+     --time-zone-set:[y|n]
+     
+     See argument above. Pass this argument to n will leave time zone unset in php.ini
+     
+     --cpu:NUMBER
+     
+     By default, phpadmin only uses 1 core to make PHP. You can change that number using that argument.
+
+
+                 *****
+
+ Q:  How can I parse phpadmin output?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  phpadmin encloses its output using the following syntax: <TYPE OUTPUT TYPE>. If the request was successfull, phpadmin will use the @ type, ie, <@ PHP Built version 3.5.8 successfully installed in /opt/php @>.
+ 
+     If an error occurred during proccess, phpadmin uses the ? type, such as <? error-message-here ?>.
+     
+     There is a third type when you ask a yes or no question to phpadmin -- ie, "is such extension installed in a given built?". If the answer is no, we don't use the ? type since there is no processing error but the ! type, such as <! the answer is no !>. This comes handy for boolean queries.
+     
+     
+     
+                 *****
+
+ Q:  How can I enable an extension for a given built?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  `phpadmin enable pdo_mysql /home/joe/bin/php/5.2.9`
+      
+      This will enable the pdo_mysql extension in the PHP built residing at the address given by the --built argument.
+      
+      `phpadmin enable pdo_mysql /home/joe/bin/php/5.2.9 --ini /home/joe/bin/php/5.2.9/lib/ini/ext/pdo_mysql.ini`
+      
+      The newly enabled extension will be declared in the default PHP ini of the built. If you want it to be declared on another file, type its full path using the argument --ini.
+      
+      `phpadmin enable pdo_mysql /home/joe/bin/php/5.2.9 --with-pdo-mysql=/usr`
+      
+      You can also pass your own configuration directives such as seen above.
+      
+      `phpadmin enable pdo_mysql help /home/joe/bin/php/5.2.9`
+      
+      This syntax will return the default configuration directives in YAML and exit. Ex:
+      
+          pdo_mysql:
+            built:
+              path: /home/joe/bin/php/5.2.9
+              version: 5.2.9
+            aptitude:
+              libmysql-dev
+            directives:
+              with-pdo-mysql: /usr
+              with-zlib-dir: /usr/lib 
+              with-php-config: ${built}/bin/php-config
+            
+
+                 *****
+                 
+ Q:  How can I know which extensions are already enabled in a built?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  `phpadmin enabled --built /home/joe/bin/php/5.2.9`
+      
+      This will return a list of enabled extensions.
+            
+
+                 *****
+                 
+ Q:  How can I install a PEAR extension in a built?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ A:  `phpadmin pear:install apc --built /home/joe/bin/php/5.2.9`
+      
+      This will install APC.
+            
+
+                 *****
+
+
+
+

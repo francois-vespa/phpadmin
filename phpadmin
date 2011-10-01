@@ -1,0 +1,415 @@
+#/bin/bash
+
+echo
+
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		Serialize arguments
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+
+declare -a myArgs
+
+key=0
+
+for i
+do
+	myArgs[key]="$i"
+	
+	key=$(( $key + 1 ))
+done
+
+if [ -L "$0" ]
+then
+	script_base=$(dirname $(readlink "$0"))
+else
+	script_base=$(dirname "$0")
+fi
+
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		Usage
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+
+usage="\n\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n  type \`phpadmin faq\` to view FAQ\n  More info @ http://code.google.com/p/termbox-phpadmin\n"
+
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		Display default screen
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+
+if [ ! "$1" ]
+then
+	echo ' phpadmin - Debian utility tool for PHP multi builts'
+	echo -e	$usage
+	exit
+fi
+
+if [ "$1" ]
+then
+	case "$1" in
+	
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		View FAQ
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+	
+		faq )
+
+			more "$script_base"/faq
+
+		;;	
+		
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		Build a new PHP instance
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+		
+		(build)
+		
+			if [ ! "$2"  ]
+			then
+				echo ' Missing version declaration'
+				echo -e $usage
+				exit
+			fi
+			
+			if [ "$3" ]
+			then
+				path="$3"
+			else
+				path=`pwd`
+			fi
+		
+			version="$2"
+			cpu=1
+			additional="$path"/"$version"/lib/conf.d
+			distrib=production
+			deploy=y
+			args="--prefix=$path/$version --with-apxs2=/usr/bin/apxs2 --with-config-file-scan-dir=$path/$version/lib/conf.d"
+			timezone="Europe/Paris"
+
+			aptitude install m4 autoconf automake libxml2-dev apache2-dev
+
+			if [ ! -d "$path" ]
+			then
+				mkdir "$path"
+			fi
+
+			cd "$path"
+
+			tmp=phpadmin-php-"$version"-`date +%s`.tar.gz
+			
+			wget -O "$tmp" http://co2-os-1982.s3.amazonaws.com/lib/php-"$version".tar.gz
+
+			tar -zxf "$tmp"
+			
+			mkdir "$version"
+
+			mv php-"$version"/* "$version"
+
+			rm -r php-"$version" "$tmp"
+
+			cd "$version"
+
+			./configure $args
+			
+			make -j$cpu
+			
+			make install
+
+			if [ "$deploy" = 'y' ]
+			then
+				cp php.ini-$distrib lib/php.ini
+				
+				sed -i 's|;date.timezone =|date.timezone='$timezone'|' lib/php.ini
+			fi
+			
+			mkdir $additional
+			
+			# fix for the "'PHP_FE_END' undeclared here (not in a function)" bug
+			# http://marc.info/?l=php-cvs&m=131161504128077
+			sed -i 's|PHP_FE_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
+			sed -i 's|ZEND_MOD_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
+			
+		;;
+		
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		Enable a PHP extension
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+		
+		(enable)
+
+			built=`pwd`
+
+			key=0
+			for k in ${myArgs[@]}
+			do
+				next=$(( $key + 1 ))
+
+				case $k in
+					(--built)	built="${myArgs[$next]}"	;;	
+					(-B)	built="${myArgs[$next]}"	;;
+				esac
+
+				key=$next
+			done
+
+
+			if [ ! "$2" ]
+			then
+				echo	' <? Nothing to enable ?>'
+				echo -e $usage
+				exit
+			fi
+			
+			extension="$2"
+			
+			if [ ! -d "$built" ]
+			then
+				echo " <? distrib not found: $built ?>"
+				echo -e $usage
+				exit
+			fi
+			
+			if [ ! -d "$built"/ext/"$2" ]
+			then
+				echo " <? Extensions folder not found -- looked in $built/ext ?>"
+				echo -e $usage
+				exit
+			fi
+			
+			if [ ! -f "$built"/bin/phpize ]
+			then
+				echo " <? phpize not found in $built/bin/phpize ?>"
+				echo -e $usage
+				exit
+			fi
+			
+			if [ ! -f "$built"/bin/php-config ]
+			then
+				echo " <? php-config not found in: $built/bin/php-config ?>"
+				echo -e $usage
+				exit
+			fi
+
+			args="--with-php-config=$built/bin/php-config --prefix=$built"
+		
+			case "$extension" in
+			
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				#		PDO MySQL extension
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				
+				(pdo_mysql)
+
+					aptitude install libmysqlclient-dev
+					
+#					if [ ! -f "$built"/bin/pecl ]
+#					then
+#						echo " <? pecl not found in: $built/bin/pecl ?>"
+#						echo -e $usage
+#						exit
+#					fi
+#					
+#					"$built"/bin/pecl install pdo_mysql
+#					
+#					echo "[phpadmin_enabled_extensions]
+#;	$extension extension for $built
+#extension=$extension.so
+#			" > "$built"/lib/conf.d/$extension.ini
+#			
+#					echo " <@ extension $extension successfully enabled in built $built @>"
+#					echo -e $usage
+#					
+#					exit
+					
+					args="--with-pdo-mysql=/usr --with-zlib-dir=/usr/lib --prefix=$built "
+		
+				;;
+				
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				#		suhosin extension for better safety
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				
+				(suhosin)
+				
+					extversion=0.9.32.1
+					tmp='phpadmin-ext-suhosin-'$extversion'-'`date +%s`.tar.gz
+				
+					cd "$built"/ext/"$2"
+				
+					wget -O $tmp http://download.suhosin.org/suhosin-$extversion.tar.gz
+					
+					tar -zxf $tmp
+					
+					rm -r $tmp
+		
+				;;
+				
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				#		mbstring
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #
+				
+				(mbstring)
+					
+					args=" --prefix=$built"
+				
+				;;
+				
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				#		Intl Extension																		#
+				#		---																								 #
+				#		Support for unicode																#
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #
+				
+				(intl)
+					
+					aptitude install libicu-dev
+					
+					args=" --enable-intl --with-icu"
+				
+				;;
+				
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+				#		Extension not yet supported by phpadmin
+				#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #
+				
+				(?)
+					echo ' <? Unknown extension: '"$2"' ?>'
+					echo -e $usage
+
+					exit
+					
+				;;
+			esac
+			
+			
+			
+			
+			
+			
+			cd "$built"/ext/"$2"
+			
+			"$built"/bin/phpize
+			
+			./configure $args
+			
+			make clean
+			
+			make install
+			
+			echo "[phpadmin_enabled_extensions]
+;	$extension extension for $built
+extension=$extension.so
+			" > "$built"/lib/conf.d/$extension.ini
+			
+			echo " <@ extension $extension successfully enabled in built $built @>"
+			echo -e $usage
+		;;
+		
+		
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#		check if a PHP extension is enabled 
+#		or return list of all enabled extensions
+#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+
+
+		(enabled)
+		
+			rec=n
+		
+			for i
+			do
+				if [ "$i" = '--extension' ]
+				then
+					rec='extension'
+				elif [ "$i" = '--built' ]
+				then
+					rec='built'
+				else
+					case $rec in
+						extension )
+							extension="$i"
+							
+							rec=n
+						;;
+						
+						built )
+							built="$i"
+							
+							rec=n
+						;;
+					esac
+				fi
+			done
+
+			if [ ! "$built" ]
+			then
+				built=`pwd`
+			fi
+			
+			if [ ! -d "$built" ]
+			then
+				echo ' <? PHP built not found ?>'
+				echo -e $usage
+				
+				exit
+			fi
+			
+			if [ ! -f "$built"/bin/php ]
+			then
+				echo ' <? PHP Interpreter not found ?>'
+				echo -e $usage
+				
+				exit
+			fi
+			
+			if [ "$extension" ]
+			then
+			
+#				modules=`$built/bin/php -m`
+				#TODO don't use shell exec but variable $modules as set above
+				 "$built"/bin/php -r "if(preg_match('/$extension/i',shell_exec('$built/bin/php -m'))) echo ' <@ extension $extension is enabled in built $built @>',PHP_EOL;"
+				 
+				 "$built"/bin/php -r "if(!preg_match('/$extension/i',shell_exec('$built/bin/php -m'))) echo ' <! extension $extension is not enabled in built $built !>',PHP_EOL;"
+				
+				echo -e $usage
+				
+				exit
+			fi
+			
+			extensions=$("$built"/bin/php -m | xargs -I {} "$built"/bin/php -r "if(preg_match('/^[a-z]/i','{}')) echo '{} ';")
+			
+			echo ' <@ '
+			
+			set -- junk $extensions
+			
+			shift
+			
+			for word
+			do
+				echo "  $word"
+			done
+			
+			echo ' @>'
+			
+			echo -e $usage
+		
+		;;
+		
+		
+		
+		
+		
+		
+		
+#		Unknown action
+		
+		(*)
+		
+			echo ' Unknown action: '$1;
+			echo -e $usage;
+			
+			exit;
+		
+		;;		
+		
+		
+		
+	esac
+fi
