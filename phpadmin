@@ -2,9 +2,22 @@
 
 echo
 
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Serialize arguments
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#	VARS
+
+pkgsoftware='apt-get'
+
+# ENVIRONMENT
+
+#	We like aptitude
+dpkg -s aptitude > /dev/null && cmd=$?
+
+[ "$cmd" = 0 ] || 
+{
+	apt-get install aptitude
+}
+
+#	ARGUMENTS
+	#TODO consider using external library shellflags if worth the pain of import
 
 declare -a myArgs
 
@@ -13,7 +26,6 @@ key=0
 for i
 do
 	myArgs[key]="$i"
-	
 	key=$(( $key + 1 ))
 done
 
@@ -24,17 +36,13 @@ else
 	script_base=$(dirname "$0")
 fi
 
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Usage
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #
+#	USAGE
 
 namespace=termini
 
 usage="\n\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n  type \`phpadmin faq\` to view FAQ\n  More info @ http://code.google.com/p/$namespace-phpadmin\n"
 
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Errors
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #
+#	ERRORS
 
 E_MISSING_VERSION_DECLARATION=1
 E_MISSING_EXTENSION_DECLARATION=2
@@ -42,105 +50,86 @@ E_NO_SUCH_BUILT=3
 E_NO_SUCH_ACTION=4
 E_MISSING_PEAR_EXTENSION_DECLARATION=5
 
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Functions
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#	DEFAULT SCREEN
 
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Display default screen
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-
-if [ ! "$1" ]
-then
+[ "$1" ] || 		#	if no args is passed
+{
 	echo ' phpadmin - Debian utility tool for PHP multi builds'
 	echo -e	$usage
 	exit
-fi
+}
 
-if [ "$1" ]
-then
-	case "$1" in
+case "$1" in
 	
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		View FAQ
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+#	FAQ
+(faq)
+	more "$script_base"/faq
+;;	
+		
+#	BUILD		
+(build)		
+	[ "$2" ]	||	
+	{
+		echo ' Missing version declaration'
+		echo -e $usage
+		exit $E_MISSING_VERSION_DECLARATION
+	}
 	
-		faq )
-
-			more "$script_base"/faq
-
-		;;	
+	"$3"	?		path="$3"
+				:		path=`pwd`
 		
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
-#		Build a new PHP instance
-#	-- # -- # -- # -- # -- # -- # -- # -- # -- # -- # -- #	
+	#	Variables
+	version="$2"
+	cpu=1
+	additional="$path"/"$version"/lib/conf.d
+	distrib=production
+	deploy=y
+	args="--prefix=$path/$version --with-apxs2=/usr/bin/apxs2 --with-config-file-scan-dir=$path/$version/lib/conf.d"
+	timezone="Europe/Paris"
+
+	#	Dependencies
+	aptitude install m4 autoconf automake libxml2-dev apache2-dev
+
+	[ ! -d "$path" ] ||
+	{
+		mkdir "$path"
+	}
+
+	cd "$path"
+
+	tmp=phpadmin-php-"$version"-`date +%s`.tar.gz
+	
+	wget -O "$tmp" http://co2-os-1982.s3.amazonaws.com/lib/php-"$version".tar.gz
+
+	tar -zxf "$tmp"
+	
+	mkdir "$version"
+
+	mv php-"$version"/* "$version"
+
+	rm -r php-"$version" "$tmp"
+
+	cd "$version"
+
+	./configure $args
+	
+	make -j$cpu
+	
+	make install
+
+	if [ "$deploy" = 'y' ]
+	then
+		cp php.ini-$distrib lib/php.ini
 		
-		(build)
-		
-			if [ ! "$2"  ]
-			then
-				echo ' Missing version declaration'
-				echo -e $usage
-				exit $E_MISSING_VERSION_DECLARATION
-			fi
-			
-			if [ "$3" ]
-			then
-				path="$3"
-			else
-				path=`pwd`
-			fi
-		
-			version="$2"
-			cpu=1
-			additional="$path"/"$version"/lib/conf.d
-			distrib=production
-			deploy=y
-			args="--prefix=$path/$version --with-apxs2=/usr/bin/apxs2 --with-config-file-scan-dir=$path/$version/lib/conf.d"
-			timezone="Europe/Paris"
-
-			aptitude install m4 autoconf automake libxml2-dev apache2-dev
-
-			if [ ! -d "$path" ]
-			then
-				mkdir "$path"
-			fi
-
-			cd "$path"
-
-			tmp=phpadmin-php-"$version"-`date +%s`.tar.gz
-			
-			wget -O "$tmp" http://co2-os-1982.s3.amazonaws.com/lib/php-"$version".tar.gz
-
-			tar -zxf "$tmp"
-			
-			mkdir "$version"
-
-			mv php-"$version"/* "$version"
-
-			rm -r php-"$version" "$tmp"
-
-			cd "$version"
-
-			./configure $args
-			
-			make -j$cpu
-			
-			make install
-
-			if [ "$deploy" = 'y' ]
-			then
-				cp php.ini-$distrib lib/php.ini
-				
-				sed -i 's|;date.timezone =|date.timezone='$timezone'|' lib/php.ini
-			fi
-			
-			mkdir $additional
-			
-			# fix for the "'PHP_FE_END' undeclared here (not in a function)" bug
-			# http://marc.info/?l=php-cvs&m=131161504128077
-			sed -i 's|PHP_FE_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
-			sed -i 's|ZEND_MOD_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
+		sed -i 's|;date.timezone =|date.timezone='$timezone'|' lib/php.ini
+	fi
+	
+	mkdir $additional
+	
+	# fix for the "'PHP_FE_END' undeclared here (not in a function)" bug
+	# http://marc.info/?l=php-cvs&m=131161504128077
+	sed -i 's|PHP_FE_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
+	sed -i 's|ZEND_MOD_END|{NULL,NULL,NULL}|' /opt/php/5.3.8/ext/**/*.c
 			
 		;;
 		
